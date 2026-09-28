@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SLC_NYE_2026 · Palang Scheduler</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<main class="wrap">
+  <p class="muted"><a href="../">Palang Scheduler</a></p>
+  <h1>SLC_NYE_2026</h1>
+  <p class="muted">Scheduling tool coming soon.</p>
+
+  <section class="card">
+    <h2>Live connection test</h2>
+    <p id="status" class="muted">Connecting…</p>
+    <p>Shared note (everyone sees changes live):</p>
+    <p id="note" class="note">—</p>
+    <form id="form">
+      <input id="input" type="text" maxlength="200" placeholder="Type something" autocomplete="off">
+      <button type="submit">Save</button>
+    </form>
+  </section>
+</main>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+  import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+  import { firebaseConfig } from "../assets/firebase-config.js";
+
+  const db = getFirestore(initializeApp(firebaseConfig));
+  const ref = doc(db, "pages", "SLC_NYE_2026");
+  const status = document.getElementById("status");
+  const note = document.getElementById("note");
+
+  onSnapshot(ref, (snap) => {
+    status.textContent = "Connected ✓";
+    note.textContent = snap.exists() && snap.data().note ? snap.data().note : "—";
+  }, (err) => {
+    status.textContent = "Connection error: " + err.code;
+  });
+
+  document.getElementById("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = document.getElementById("input");
+    const text = input.value.trim();
+    if (!text) return;
+    try {
+      await setDoc(ref, { note: text, updatedAt: serverTimestamp() }, { merge: true });
+      input.value = "";
+    } catch (err) {
+      status.textContent = "Save failed: " + err.code;
+    }
+  });
+</script>
+</body>
+</html>
