@@ -11,7 +11,8 @@ service cloud.firestore {
 
       match /companions/{companionId} {
         allow read: if true;
-        allow create, update: if request.resource.data.keys().hasOnly(['name', 'start', 'end', 'color', 'createdAt', 'updatedAt', 'removed', 'removedAt'])
+        allow create, update: if request.resource.data.keys().hasOnly(['name', 'start', 'end', 'needsAccommodation', 'color', 'createdAt', 'updatedAt', 'removed', 'removedAt'])
+          && (!('needsAccommodation' in request.resource.data) || request.resource.data.needsAccommodation is bool)
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
           && request.resource.data.name.size() <= 60
@@ -25,7 +26,7 @@ service cloud.firestore {
 
       match /history/{entryId} {
         allow read: if true;
-        allow create: if request.resource.data.keys().hasOnly(['type', 'name', 'start', 'end', 'at'])
+        allow create: if request.resource.data.keys().hasOnly(['type', 'name', 'start', 'end', 'needsAccommodation', 'at'])
           && request.resource.data.type in ['submit', 'rejoin', 'update', 'remove', 'freeze', 'unfreeze'];
         allow update, delete: if false;
       }
