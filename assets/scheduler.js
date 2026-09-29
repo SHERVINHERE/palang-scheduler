@@ -1,10 +1,10 @@
 // Palang Scheduler — shared calendar + companions tool (public and admin pages)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import {
-  getFirestore, doc, collection, query, orderBy, onSnapshot,
-  runTransaction, serverTimestamp, deleteField, setDoc, getDoc, getDocs
+  initializeFirestore, doc, collection, query, orderBy, onSnapshot,
+  runTransaction, serverTimestamp, deleteField, setDoc, getDocFromServer, getDocsFromServer
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js?v=5";
+import { firebaseConfig } from "./firebase-config.js?v=6";
 
 // 15 distinct colors (Trubetskoy "20 Simple, Distinct Colors", pale tints removed for use on white)
 export const COLORS = [
@@ -40,7 +40,9 @@ const el = (tag, cls, text) => {
 };
 
 export function initScheduler(cfg) {
-  const db = getFirestore(initializeApp(firebaseConfig));
+  // Long polling instead of a streaming connection: some phones, carriers and
+  // proxies deliver the first load but silently hold back live updates.
+  const db = initializeFirestore(initializeApp(firebaseConfig), { experimentalForceLongPolling: true });
   const metaRef = doc(db, "events", cfg.eventId);
   const compCol = collection(db, "events", cfg.eventId, "companions");
   const histCol = collection(db, "events", cfg.eventId, "history");
@@ -50,7 +52,9 @@ export function initScheduler(cfg) {
   const state = {
     companions: [], meta: { frozen: false, active: {} }, history: [],
     selStart: null, selEnd: null, hover: null,
-    checked: [], mode: null, submitted: false, busy: false, loaded: false
+    checked: [], mode: null, submitted: false, busy: false, loaded: false,
+    serverCompanions: [], serverMeta: { frozen: false, active: {} },
+    pending: {} // id -> { kind: "upsert"|"remove", data, until } : local changes not yet confirmed by the server
   };
 
   // ---------- static calendar grid ----------
@@ -299,16 +303,15 @@ export function initScheduler(cfg) {
         action: "submit", id: result.id, name, email, start, end,
         event: cfg.eventId, place: cfg.subtitle, pageUrl: publicUrl
       });
-      // Show the change right away; the live listener confirms it moments later.
-      const existing = state.companions.find((c) => c.id === result.id);
-      if (existing && result.updated) {
-        state.companions = state.companions.map((c) => c.id === result.id ? { ...c, name, start, end } : c);
-      } else {
-        state.companions = state.companions.filter((c) => c.id !== result.id)
-          .concat({ id: result.id, name, start, end, color: result.color, removed: false, createdAt: new Date(), removedAt: null });
-      }
-      state.meta = { ...state.meta, active: { ...(state.meta.active || {}), [result.id]: result.color } };
-      setTimeout(refreshNow, 400);
+      // Show the change right away and keep showing it until the server confirms it.
+      const prev = state.companions.find((c) => c.id === result.id);
+      state.pending[result.id] = {
+        kind: "upsert", until: Date.now() + 60000,
+        data: { id: result.id, name, start, end, color: result.color, removed: false,
+                createdAt: (result.updated && prev && prev.createdAt) || new Date(), removedAt: null }
+      };
+      rebuild();
+      setTimeout(refreshNow, 800);
       state.submitted = true;
       state.selStart = null; state.selEnd = null; state.hover = null;
       nameIn.value = ""; emailIn.value = "";
@@ -376,14 +379,11 @@ export function initScheduler(cfg) {
         }
       });
       relay({ action: "delete", ids });
-      // Show the change right away; the live listener confirms it moments later.
-      const now = new Date();
-      state.companions = state.companions.map((c) => ids.includes(c.id) ? { ...c, removed: true, removedAt: c.removedAt || now } : c);
-      const active = { ...(state.meta.active || {}) };
-      ids.forEach((id) => delete active[id]);
-      state.meta = { ...state.meta, active };
+      // Show the change right away and keep showing it until the server confirms it.
+      ids.forEach((id) => { state.pending[id] = { kind: "remove", until: Date.now() + 60000 }; });
       state.checked = state.checked.filter((id) => !ids.includes(id));
-      setTimeout(refreshNow, 400);
+      rebuild();
+      setTimeout(refreshNow, 800);
     } catch (err) {
       console.error(err);
       alert(err.message === "frozen" ? "This event is maxed out. Changes are closed." : "Something went wrong while removing. Please try again.");
@@ -446,12 +446,17 @@ export function initScheduler(cfg) {
 
   // ---------- live data ----------
   const status = $("status");
+  // Ignore cached (possibly stale) snapshots once we have fresher data from the server.
+  let lastServerFetch = 0;
+  const staleCache = (snap) => snap.metadata && snap.metadata.fromCache && Date.now() - lastServerFetch < 120000;
   function applyMeta(snap) {
-    state.meta = snap.exists() ? { frozen: false, active: {}, ...snap.data() } : { frozen: false, active: {} };
-    renderAll();
+    if (staleCache(snap)) return;
+    state.serverMeta = snap.exists() ? { frozen: false, active: {}, ...snap.data() } : { frozen: false, active: {} };
+    rebuild();
   }
   function applyCompanions(snap) {
-    state.companions = snap.docs.map((d) => {
+    if (staleCache(snap)) return;
+    state.serverCompanions = snap.docs.map((d) => {
       const x = d.data({ serverTimestamps: "estimate" });
       return {
         id: d.id, name: x.name, start: x.start, end: x.end, color: x.color, removed: !!x.removed,
@@ -460,14 +465,42 @@ export function initScheduler(cfg) {
     });
     state.loaded = true;
     status.textContent = "";
+    rebuild();
+  }
+  // Combine what the server last told us with this browser's own changes that
+  // the server hasn't confirmed yet, so nothing flickers or disappears.
+  function rebuild() {
+    const now = Date.now();
+    let list = state.serverCompanions.slice();
+    const active = { ...(state.serverMeta.active || {}) };
+    for (const id of Object.keys(state.pending)) {
+      const p = state.pending[id];
+      const srv = list.find((c) => c.id === id);
+      const confirmed = p.kind === "remove"
+        ? (!srv || srv.removed)
+        : (srv && !srv.removed && srv.name === p.data.name && srv.start === p.data.start && srv.end === p.data.end);
+      if (confirmed || now > p.until) { delete state.pending[id]; continue; }
+      if (p.kind === "remove") {
+        list = list.map((c) => c.id === id ? { ...c, removed: true, removedAt: c.removedAt || new Date() } : c);
+        delete active[id];
+      } else {
+        list = srv ? list.map((c) => c.id === id ? { ...c, ...p.data, createdAt: c.createdAt || p.data.createdAt } : c)
+                   : list.concat(p.data);
+        active[id] = p.data.color;
+      }
+    }
+    state.companions = list;
+    state.meta = { ...state.serverMeta, active };
     renderAll();
   }
-  // One-off fetch straight from the database, used after every change so the
-  // list is correct even if the live stream has stalled (common on phones).
+  // One-off fetch straight from the server (never from the local cache), used
+  // after every change and when the tab comes back into view.
   async function refreshNow() {
     try {
-      const [m, c] = await Promise.all([getDoc(metaRef), getDocs(query(compCol, orderBy("createdAt", "asc")))]);
+      const [m, c] = await Promise.all([getDocFromServer(metaRef), getDocsFromServer(query(compCol, orderBy("createdAt", "asc")))]);
+      lastServerFetch = 0; // server results are never stale
       applyMeta(m); applyCompanions(c);
+      lastServerFetch = Date.now();
     } catch (e) { console.warn("Refresh failed", e); }
   }
   // Listeners are restarted whenever the page comes back into view or the
@@ -495,6 +528,8 @@ export function initScheduler(cfg) {
     if (document.visibilityState === "hidden") hiddenAt = Date.now();
     else if (Date.now() - hiddenAt > 2000) { subscribe(); refreshNow(); }
   });
+  // Safety net: while the page is on screen, check the server once a minute.
+  setInterval(() => { if (document.visibilityState === "visible") refreshNow(); }, 60000);
   window.addEventListener("online", subscribe);
   window.addEventListener("pageshow", (e) => { if (e.persisted) subscribe(); });
   subscribe();
