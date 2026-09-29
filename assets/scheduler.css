@@ -13,8 +13,8 @@ button { font: inherit; color: inherit; }
 a { color: inherit; }
 
 .page { max-width: 1040px; margin: 0 auto; padding: 24px 16px 56px; }
-.banner { display: block; width: 100%; height: 260px; object-fit: cover; object-position: center; border-radius: 12px; margin: 0 0 18px; background: #cfe6f3; }
-@media (max-width: 760px) { .banner { height: 160px; border-radius: 10px; } }
+.banner { display: block; width: 100%; height: auto; aspect-ratio: 3 / 1; object-fit: cover; object-position: center; border-radius: 12px; margin: 0 0 18px; background: #cfe6f3; }
+@media (max-width: 760px) { .banner { border-radius: 10px; } }
 header h1 { margin: 0; font-size: clamp(1.35rem, 4.5vw, 1.9rem); letter-spacing: -0.01em; }
 header .place { margin: 2px 0 14px; color: var(--muted); font-size: 1.05rem; }
 .brief { max-width: 720px; margin: 0 0 24px; color: #3b3a37; font-size: 15.5px; line-height: 1.55; }
