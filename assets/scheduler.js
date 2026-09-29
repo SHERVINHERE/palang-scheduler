@@ -4,7 +4,7 @@ import {
   initializeFirestore, doc, collection, query, orderBy, onSnapshot,
   runTransaction, serverTimestamp, deleteField, setDoc, getDocFromServer, getDocsFromServer
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js?v=6";
+import { firebaseConfig } from "./firebase-config.js?v=8";
 
 // 15 distinct colors (Trubetskoy "20 Simple, Distinct Colors", pale tints removed for use on white)
 export const COLORS = [
@@ -196,7 +196,9 @@ export function initScheduler(cfg) {
       const dot = el("span", "dot" + (on ? " on" : ""));
       dot.style.setProperty("--c", colorOf(c));
       const text = el("span", "who");
-      text.appendChild(el("span", "name", c.name));
+      const nm = el("span", "name", c.name);
+      if (!c.needsAccommodation) nm.appendChild(el("span", "tag", "No accommodation"));
+      text.appendChild(nm);
       text.appendChild(el("span", "dates", fmtRange(c.start, c.end) + (c.removed ? " · removed" : "")));
       btn.append(dot, text);
       btn.addEventListener("click", () => toggleChecked(c.id));
@@ -231,6 +233,7 @@ export function initScheduler(cfg) {
 
   // ---------- form ----------
   const nameIn = $("name"), emailIn = $("email"), submitBtn = $("submitBtn"), feedback = $("feedback");
+  const noAccIn = $("noAccommodation");
 
   function resetSubmitted() {
     if (!state.submitted) return;
@@ -238,11 +241,11 @@ export function initScheduler(cfg) {
     submitBtn.classList.remove("done");
     submitBtn.textContent = "Submit";
   }
-  [nameIn, emailIn].forEach((i) => i.addEventListener("input", () => { resetSubmitted(); feedback.textContent = ""; feedback.className = "feedback"; }));
+  [nameIn, emailIn, noAccIn].forEach((i) => i.addEventListener("input", () => { resetSubmitted(); feedback.textContent = ""; feedback.className = "feedback"; }));
 
   function renderForm() {
     const lock = locked();
-    nameIn.disabled = emailIn.disabled = lock || state.busy;
+    nameIn.disabled = emailIn.disabled = noAccIn.disabled = lock || state.busy;
     submitBtn.disabled = lock || state.busy;
     const note = $("lockNote");
     if (!cfg.admin && state.meta.frozen) note.textContent = "This event is maxed out.";
@@ -259,6 +262,7 @@ export function initScheduler(cfg) {
     if (locked() || state.busy) return;
     const name = nameIn.value.trim().replace(/\s+/g, " ").slice(0, 60);
     const email = emailIn.value.trim().toLowerCase();
+    const needsAccommodation = !noAccIn.checked;
     const missing = [];
     if (!state.selStart || !state.selEnd) missing.push(`a date range (minimum ${cfg.minDays} days)`);
     if (!name) missing.push("your name");
@@ -291,30 +295,30 @@ export function initScheduler(cfg) {
         }
         const now = serverTimestamp();
         if (isActive && compSnap.exists()) {
-          tx.update(compRef, { name, start, end, updatedAt: now });
+          tx.update(compRef, { name, start, end, needsAccommodation, updatedAt: now });
         } else {
-          tx.set(compRef, { name, start, end, color, createdAt: now, updatedAt: now, removed: false, removedAt: null });
+          tx.set(compRef, { name, start, end, needsAccommodation, color, createdAt: now, updatedAt: now, removed: false, removedAt: null });
         }
         tx.set(metaRef, { active: { [id]: color } }, { merge: true });
-        tx.set(doc(histCol), { type: isActive ? "update" : (compSnap.exists() ? "rejoin" : "submit"), name, start, end, at: now });
+        tx.set(doc(histCol), { type: isActive ? "update" : (compSnap.exists() ? "rejoin" : "submit"), name, start, end, needsAccommodation, at: now });
         return { id, updated: isActive, color };
       });
       relay({
-        action: "submit", id: result.id, name, email, start, end,
+        action: "submit", id: result.id, name, email, start, end, needsAccommodation,
         event: cfg.eventId, place: cfg.subtitle, pageUrl: publicUrl
       });
       // Show the change right away and keep showing it until the server confirms it.
       const prev = state.companions.find((c) => c.id === result.id);
       state.pending[result.id] = {
         kind: "upsert", until: Date.now() + 60000,
-        data: { id: result.id, name, start, end, color: result.color, removed: false,
+        data: { id: result.id, name, start, end, needsAccommodation, color: result.color, removed: false,
                 createdAt: (result.updated && prev && prev.createdAt) || new Date(), removedAt: null }
       };
       rebuild();
       setTimeout(refreshNow, 800);
       state.submitted = true;
       state.selStart = null; state.selEnd = null; state.hover = null;
-      nameIn.value = ""; emailIn.value = "";
+      nameIn.value = ""; emailIn.value = ""; noAccIn.checked = false;
       submitBtn.classList.add("done");
       submitBtn.textContent = "Submitted!";
       feedback.className = "feedback ok";
@@ -414,9 +418,10 @@ export function initScheduler(cfg) {
       } catch (err) { console.error(err); alert("Could not change FREEZE. Please try again."); e.target.checked = !frozen; }
     });
     $("exportBtn").addEventListener("click", () => {
-      const rows = [["Name", "First day", "Last day", "Days", "Status", "Added", "Removed"]];
+      const rows = [["Name", "First day", "Last day", "Days", "Nights", "Needs accommodation", "Status", "Added", "Removed"]];
       state.companions.forEach((c) => rows.push([
-        c.name, c.start, c.end, dayDiff(c.start, c.end) + 1, c.removed ? "Removed" : "Active",
+        c.name, c.start, c.end, dayDiff(c.start, c.end) + 1, dayDiff(c.start, c.end), c.needsAccommodation ? "Yes" : "No",
+        c.removed ? "Removed" : "Active",
         c.createdAt ? c.createdAt.toISOString() : "", c.removedAt ? c.removedAt.toISOString() : ""
       ]));
       const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -439,7 +444,7 @@ export function initScheduler(cfg) {
       const when = h.at ? h.at.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
       li.appendChild(el("span", "h-when", when));
       li.appendChild(el("span", "h-type t-" + h.type, label[h.type] || h.type));
-      li.appendChild(el("span", "h-what", h.name ? `${h.name} · ${fmtRange(h.start, h.end)}` : ""));
+      li.appendChild(el("span", "h-what", h.name ? `${h.name} · ${fmtRange(h.start, h.end)}${h.needsAccommodation === false ? " · no accommodation" : ""}` : ""));
       ul.appendChild(li);
     });
   }
@@ -460,6 +465,7 @@ export function initScheduler(cfg) {
       const x = d.data({ serverTimestamps: "estimate" });
       return {
         id: d.id, name: x.name, start: x.start, end: x.end, color: x.color, removed: !!x.removed,
+        needsAccommodation: x.needsAccommodation !== false, // missing (older entries) = needs accommodation
         createdAt: x.createdAt ? x.createdAt.toDate() : null, removedAt: x.removedAt ? x.removedAt.toDate() : null
       };
     });
@@ -478,7 +484,8 @@ export function initScheduler(cfg) {
       const srv = list.find((c) => c.id === id);
       const confirmed = p.kind === "remove"
         ? (!srv || srv.removed)
-        : (srv && !srv.removed && srv.name === p.data.name && srv.start === p.data.start && srv.end === p.data.end);
+        : (srv && !srv.removed && srv.name === p.data.name && srv.start === p.data.start && srv.end === p.data.end
+           && srv.needsAccommodation === p.data.needsAccommodation);
       if (confirmed || now > p.until) { delete state.pending[id]; continue; }
       if (p.kind === "remove") {
         list = list.map((c) => c.id === id ? { ...c, removed: true, removedAt: c.removedAt || new Date() } : c);

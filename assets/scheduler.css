@@ -16,7 +16,10 @@ a { color: inherit; }
 .banner { display: block; width: 100%; height: 260px; object-fit: cover; object-position: center; border-radius: 12px; margin: 0 0 18px; background: #cfe6f3; }
 @media (max-width: 760px) { .banner { height: 160px; border-radius: 10px; } }
 header h1 { margin: 0; font-size: clamp(1.35rem, 4.5vw, 1.9rem); letter-spacing: -0.01em; }
-header .place { margin: 2px 0 20px; color: var(--muted); font-size: 1.05rem; }
+header .place { margin: 2px 0 14px; color: var(--muted); font-size: 1.05rem; }
+.brief { max-width: 720px; margin: 0 0 24px; color: #3b3a37; font-size: 15.5px; line-height: 1.55; }
+.brief p { margin: 0 0 10px; }
+.brief p:last-child { margin-bottom: 0; }
 .status { color: var(--err); font-size: 14px; min-height: 0; margin: 0 0 8px; }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 32px; align-items: start; }
@@ -73,6 +76,11 @@ header .place { margin: 2px 0 20px; color: var(--muted); font-size: 1.05rem; }
 .field input { width: 100%; padding: 10px 12px; font-size: 16px; border: 1px solid #c9c6bf; border-radius: 8px; background: #fff; color: var(--fg); }
 .field input:focus { outline: 2px solid var(--fg); outline-offset: 1px; }
 .field input:disabled { background: #efeeea; color: #9a9993; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; cursor: pointer; margin-left: 64px; }
+.check input { width: 18px; height: 18px; margin: 0; accent-color: #1d1d1b; }
+.check:has(input:disabled) { color: #9a9993; cursor: not-allowed; }
+@media (max-width: 420px) { .check { margin-left: 0; } }
+.tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--soft); border: 1px solid var(--line); font-size: 11px; color: var(--muted); vertical-align: 1px; }
 .submit { align-self: start; padding: 10px 22px; height: 44px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; transition: background .2s ease; white-space: nowrap; }
 .submit.done { background: var(--ok); }
 .submit:disabled { background: #b9b7b1; cursor: not-allowed; }
