@@ -7,7 +7,7 @@
 const OWNER_EMAIL = 'shervpey@gmail.com';
 const SITE_NAME = 'Palang Scheduler';
 const SITE_ORIGIN = 'https://shervinhere.github.io/palang-scheduler/';
-const BANNER_URL = SITE_ORIGIN + 'assets/banner-email.jpg';
+const BANNER_URL = SITE_ORIGIN + 'assets/banner-email.jpg.jpg';
 
 function doPost(e) {
   let data;
