@@ -310,6 +310,7 @@ export function initScheduler(cfg) {
       state.meta = { ...state.meta, active: { ...(state.meta.active || {}), [result.id]: result.color } };
       state.submitted = true;
       state.selStart = null; state.selEnd = null; state.hover = null;
+      nameIn.value = ""; emailIn.value = "";
       submitBtn.classList.add("done");
       submitBtn.textContent = "Submitted!";
       feedback.className = "feedback ok";
