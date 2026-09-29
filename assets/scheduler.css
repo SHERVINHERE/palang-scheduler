@@ -88,7 +88,9 @@ header .place { margin: 2px 0 20px; color: var(--muted); font-size: 1.05rem; }
 .freeze input { width: 18px; height: 18px; accent-color: #1d1d1b; }
 
 /* ---------- companions ---------- */
-.people h2 { margin: 0 0 10px; font-size: 1.15rem; padding-bottom: 8px; border-bottom: 2px solid var(--fg); }
+/* Section headings share one divider style: title with a thick rule under it.
+   Any new section using <section class="panel"><h2>…</h2> gets it automatically. */
+.people h2, .panel h2 { margin: 0 0 10px; font-size: 1.15rem; padding-bottom: 8px; border-bottom: 2px solid var(--fg); }
 .people ul { list-style: none; margin: 0; padding: 0; }
 .people li { margin: 0; }
 .row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 7px 4px; border: 0; background: none; text-align: left; cursor: pointer; border-radius: 8px; }
@@ -122,8 +124,7 @@ header .place { margin: 2px 0 20px; color: var(--muted); font-size: 1.05rem; }
 
 /* ---------- admin ---------- */
 .admin-tag { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--fg); color: #fff; font-size: 12px; font-weight: 700; vertical-align: middle; letter-spacing: .04em; }
-.panel { margin-top: 32px; border-top: 1px solid var(--line); padding-top: 16px; }
-.panel h2 { margin: 0 0 10px; font-size: 1.1rem; }
+.panel { margin-top: 36px; }
 .panel .tools { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .history { list-style: none; margin: 0; padding: 0; font-size: 14px; }
 .history li { display: grid; grid-template-columns: 120px 90px minmax(0, 1fr); gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
