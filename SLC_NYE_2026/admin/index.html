@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SLC_NYE_2026 Admin · Palang Scheduler</title>
 <meta name="robots" content="noindex, nofollow">
-<link rel="stylesheet" href="../../assets/scheduler.css">
+<link rel="stylesheet" href="../../assets/scheduler.css?v=5">
 </head>
 <body>
 <div id="gate" class="gate">
@@ -88,7 +88,7 @@
 </div>
 
 <script type="module">
-  import { initScheduler } from "../../assets/scheduler.js";
+  import { initScheduler } from "../../assets/scheduler.js?v=5";
   const PASS_HASH = "768ff9b2e04496535e1bc926a1c89047d7223f57aa17191039cf16af594faf21";
   const KEY = "palang_admin_ok";
   const hash = async (s) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))]

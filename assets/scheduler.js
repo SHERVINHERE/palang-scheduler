@@ -2,9 +2,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import {
   getFirestore, doc, collection, query, orderBy, onSnapshot,
-  runTransaction, serverTimestamp, deleteField, setDoc
+  runTransaction, serverTimestamp, deleteField, setDoc, getDoc, getDocs
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-config.js";
+import { firebaseConfig } from "./firebase-config.js?v=5";
 
 // 15 distinct colors (Trubetskoy "20 Simple, Distinct Colors", pale tints removed for use on white)
 export const COLORS = [
@@ -308,6 +308,7 @@ export function initScheduler(cfg) {
           .concat({ id: result.id, name, start, end, color: result.color, removed: false, createdAt: new Date(), removedAt: null });
       }
       state.meta = { ...state.meta, active: { ...(state.meta.active || {}), [result.id]: result.color } };
+      setTimeout(refreshNow, 400);
       state.submitted = true;
       state.selStart = null; state.selEnd = null; state.hover = null;
       nameIn.value = ""; emailIn.value = "";
@@ -382,6 +383,7 @@ export function initScheduler(cfg) {
       ids.forEach((id) => delete active[id]);
       state.meta = { ...state.meta, active };
       state.checked = state.checked.filter((id) => !ids.includes(id));
+      setTimeout(refreshNow, 400);
     } catch (err) {
       console.error(err);
       alert(err.message === "frozen" ? "This event is maxed out. Changes are closed." : "Something went wrong while removing. Please try again.");
@@ -443,30 +445,40 @@ export function initScheduler(cfg) {
   }
 
   // ---------- live data ----------
+  const status = $("status");
+  function applyMeta(snap) {
+    state.meta = snap.exists() ? { frozen: false, active: {}, ...snap.data() } : { frozen: false, active: {} };
+    renderAll();
+  }
+  function applyCompanions(snap) {
+    state.companions = snap.docs.map((d) => {
+      const x = d.data({ serverTimestamps: "estimate" });
+      return {
+        id: d.id, name: x.name, start: x.start, end: x.end, color: x.color, removed: !!x.removed,
+        createdAt: x.createdAt ? x.createdAt.toDate() : null, removedAt: x.removedAt ? x.removedAt.toDate() : null
+      };
+    });
+    state.loaded = true;
+    status.textContent = "";
+    renderAll();
+  }
+  // One-off fetch straight from the database, used after every change so the
+  // list is correct even if the live stream has stalled (common on phones).
+  async function refreshNow() {
+    try {
+      const [m, c] = await Promise.all([getDoc(metaRef), getDocs(query(compCol, orderBy("createdAt", "asc")))]);
+      applyMeta(m); applyCompanions(c);
+    } catch (e) { console.warn("Refresh failed", e); }
+  }
   // Listeners are restarted whenever the page comes back into view or the
   // connection returns (phones pause background tabs and can drop the stream).
-  const status = $("status");
   let unsubs = [];
   function subscribe() {
     unsubs.forEach((u) => u());
     unsubs = [];
-    unsubs.push(onSnapshot(metaRef, (snap) => {
-      state.meta = snap.exists() ? { frozen: false, active: {}, ...snap.data() } : { frozen: false, active: {} };
-      renderAll();
-    }, (err) => { status.textContent = "Connection problem: " + err.code; }));
-
-    unsubs.push(onSnapshot(query(compCol, orderBy("createdAt", "asc")), (snap) => {
-      state.companions = snap.docs.map((d) => {
-        const x = d.data({ serverTimestamps: "estimate" });
-        return {
-          id: d.id, name: x.name, start: x.start, end: x.end, color: x.color, removed: !!x.removed,
-          createdAt: x.createdAt ? x.createdAt.toDate() : null, removedAt: x.removedAt ? x.removedAt.toDate() : null
-        };
-      });
-      state.loaded = true;
-      status.textContent = "";
-      renderAll();
-    }, (err) => { status.textContent = "Connection problem: " + err.code; }));
+    unsubs.push(onSnapshot(metaRef, applyMeta, (err) => { status.textContent = "Connection problem: " + err.code; }));
+    unsubs.push(onSnapshot(query(compCol, orderBy("createdAt", "asc")), applyCompanions,
+      (err) => { status.textContent = "Connection problem: " + err.code; }));
 
     if (cfg.admin) {
       unsubs.push(onSnapshot(query(histCol, orderBy("at", "desc")), (snap) => {
@@ -481,7 +493,7 @@ export function initScheduler(cfg) {
   let hiddenAt = 0;
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") hiddenAt = Date.now();
-    else if (Date.now() - hiddenAt > 2000) subscribe();
+    else if (Date.now() - hiddenAt > 2000) { subscribe(); refreshNow(); }
   });
   window.addEventListener("online", subscribe);
   window.addEventListener("pageshow", (e) => { if (e.persisted) subscribe(); });
