@@ -45,6 +45,7 @@ export function initScheduler(cfg) {
   const compCol = collection(db, "events", cfg.eventId, "companions");
   const histCol = collection(db, "events", cfg.eventId, "history");
   const $ = (id) => document.getElementById(id);
+  const publicUrl = new URL(cfg.admin ? "../" : "./", location.href).href;
 
   const state = {
     companions: [], meta: { frozen: false, active: {} }, history: [],
@@ -292,9 +293,21 @@ export function initScheduler(cfg) {
         }
         tx.set(metaRef, { active: { [id]: color } }, { merge: true });
         tx.set(doc(histCol), { type: isActive ? "update" : (compSnap.exists() ? "rejoin" : "submit"), name, start, end, at: now });
-        return { id, updated: isActive };
+        return { id, updated: isActive, color };
       });
-      relay({ action: "submit", id: result.id, name, email, start, end, event: cfg.eventId, eventTitle: `${cfg.eventId} (${cfg.subtitle})` });
+      relay({
+        action: "submit", id: result.id, name, email, start, end,
+        event: cfg.eventId, place: cfg.subtitle, pageUrl: publicUrl
+      });
+      // Show the change right away; the live listener confirms it moments later.
+      const existing = state.companions.find((c) => c.id === result.id);
+      if (existing && result.updated) {
+        state.companions = state.companions.map((c) => c.id === result.id ? { ...c, name, start, end } : c);
+      } else {
+        state.companions = state.companions.filter((c) => c.id !== result.id)
+          .concat({ id: result.id, name, start, end, color: result.color, removed: false, createdAt: new Date(), removedAt: null });
+      }
+      state.meta = { ...state.meta, active: { ...(state.meta.active || {}), [result.id]: result.color } };
       state.submitted = true;
       state.selStart = null; state.selEnd = null; state.hover = null;
       submitBtn.classList.add("done");
@@ -361,6 +374,12 @@ export function initScheduler(cfg) {
         }
       });
       relay({ action: "delete", ids });
+      // Show the change right away; the live listener confirms it moments later.
+      const now = new Date();
+      state.companions = state.companions.map((c) => ids.includes(c.id) ? { ...c, removed: true, removedAt: c.removedAt || now } : c);
+      const active = { ...(state.meta.active || {}) };
+      ids.forEach((id) => delete active[id]);
+      state.meta = { ...state.meta, active };
       state.checked = state.checked.filter((id) => !ids.includes(id));
     } catch (err) {
       console.error(err);
@@ -404,13 +423,6 @@ export function initScheduler(cfg) {
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     });
-    onSnapshot(query(histCol, orderBy("at", "desc")), (snap) => {
-      state.history = snap.docs.map((d) => {
-        const x = d.data({ serverTimestamps: "estimate" });
-        return { ...x, at: x.at ? x.at.toDate() : null };
-      });
-      renderHistory();
-    });
   }
 
   function renderHistory() {
@@ -430,24 +442,49 @@ export function initScheduler(cfg) {
   }
 
   // ---------- live data ----------
+  // Listeners are restarted whenever the page comes back into view or the
+  // connection returns (phones pause background tabs and can drop the stream).
   const status = $("status");
-  onSnapshot(metaRef, (snap) => {
-    state.meta = snap.exists() ? { frozen: false, active: {}, ...snap.data() } : { frozen: false, active: {} };
-    renderAll();
-  }, (err) => { status.textContent = "Connection problem: " + err.code; });
+  let unsubs = [];
+  function subscribe() {
+    unsubs.forEach((u) => u());
+    unsubs = [];
+    unsubs.push(onSnapshot(metaRef, (snap) => {
+      state.meta = snap.exists() ? { frozen: false, active: {}, ...snap.data() } : { frozen: false, active: {} };
+      renderAll();
+    }, (err) => { status.textContent = "Connection problem: " + err.code; }));
 
-  onSnapshot(query(compCol, orderBy("createdAt", "asc")), (snap) => {
-    state.companions = snap.docs.map((d) => {
-      const x = d.data({ serverTimestamps: "estimate" });
-      return {
-        id: d.id, name: x.name, start: x.start, end: x.end, color: x.color, removed: !!x.removed,
-        createdAt: x.createdAt ? x.createdAt.toDate() : null, removedAt: x.removedAt ? x.removedAt.toDate() : null
-      };
-    });
-    state.loaded = true;
-    status.textContent = "";
-    renderAll();
-  }, (err) => { status.textContent = "Connection problem: " + err.code; });
+    unsubs.push(onSnapshot(query(compCol, orderBy("createdAt", "asc")), (snap) => {
+      state.companions = snap.docs.map((d) => {
+        const x = d.data({ serverTimestamps: "estimate" });
+        return {
+          id: d.id, name: x.name, start: x.start, end: x.end, color: x.color, removed: !!x.removed,
+          createdAt: x.createdAt ? x.createdAt.toDate() : null, removedAt: x.removedAt ? x.removedAt.toDate() : null
+        };
+      });
+      state.loaded = true;
+      status.textContent = "";
+      renderAll();
+    }, (err) => { status.textContent = "Connection problem: " + err.code; }));
+
+    if (cfg.admin) {
+      unsubs.push(onSnapshot(query(histCol, orderBy("at", "desc")), (snap) => {
+        state.history = snap.docs.map((d) => {
+          const x = d.data({ serverTimestamps: "estimate" });
+          return { ...x, at: x.at ? x.at.toDate() : null };
+        });
+        renderHistory();
+      }));
+    }
+  }
+  let hiddenAt = 0;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") hiddenAt = Date.now();
+    else if (Date.now() - hiddenAt > 2000) subscribe();
+  });
+  window.addEventListener("online", subscribe);
+  window.addEventListener("pageshow", (e) => { if (e.persisted) subscribe(); });
+  subscribe();
 
   function renderAll() {
     renderCalendar();
