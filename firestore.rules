@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /events/{eventId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasOnly(['frozen', 'active'])
+        && (!('frozen' in request.resource.data) || request.resource.data.frozen is bool)
+        && (!('active' in request.resource.data) || (request.resource.data.active is map && request.resource.data.active.size() <= 15));
+      allow delete: if false;
+
+      match /companions/{companionId} {
+        allow read: if true;
+        allow create, update: if request.resource.data.keys().hasOnly(['name', 'start', 'end', 'color', 'createdAt', 'updatedAt', 'removed', 'removedAt'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 60
+          && request.resource.data.start is string
+          && request.resource.data.end is string
+          && request.resource.data.start.matches('^\\d{4}-\\d{2}-\\d{2}$')
+          && request.resource.data.end.matches('^\\d{4}-\\d{2}-\\d{2}$')
+          && request.resource.data.removed is bool;
+        allow delete: if false;
+      }
+
+      match /history/{entryId} {
+        allow read: if true;
+        allow create: if request.resource.data.keys().hasOnly(['type', 'name', 'start', 'end', 'at'])
+          && request.resource.data.type in ['submit', 'rejoin', 'update', 'remove', 'freeze', 'unfreeze'];
+        allow update, delete: if false;
+      }
+    }
+
+    // Anything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

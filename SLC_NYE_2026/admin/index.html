@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SLC_NYE_2026 Admin · Palang Scheduler</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="stylesheet" href="../../assets/scheduler.css">
+</head>
+<body>
+<div id="gate" class="gate">
+  <h1>Admin access</h1>
+  <form id="gateForm">
+    <input id="pass" type="password" placeholder="Passcode" autocomplete="current-password" aria-label="Passcode">
+    <button class="submit" type="submit">Enter</button>
+  </form>
+  <p id="gateErr" class="err" aria-live="polite"></p>
+</div>
+
+<div id="app" hidden>
+<div class="page">
+  <p class="crumb"><a href="../">SLC_NYE_2026</a> / Admin</p>
+  <header>
+    <h1>December 2026 – January 2027 <span class="admin-tag">ADMIN</span></h1>
+    <p class="place">Salt Lake City, UT</p>
+  </header>
+  <p id="status" class="status" role="status"></p>
+
+  <div class="layout">
+    <section>
+      <div id="grid" class="grid" aria-label="Calendar, December 22, 2026 to January 4, 2027"></div>
+      <p id="rangeHint" class="range-hint" aria-live="polite"></p>
+
+      <form id="form" class="form" novalidate>
+        <div class="fields">
+          <label class="field"><span>Name</span><input id="name" type="text" autocomplete="off" maxlength="60"></label>
+          <label class="field"><span>Email</span><input id="email" type="email" autocomplete="off" inputmode="email" maxlength="120"></label>
+        </div>
+        <div class="submit-col">
+          <button id="submitBtn" class="submit" type="submit">Submit</button>
+          <label class="freeze"><input id="freeze" type="checkbox"> FREEZE</label>
+        </div>
+        <div class="below">
+          <p id="feedback" class="feedback" aria-live="polite"></p>
+          <p id="lockNote" class="lock-note" aria-live="polite"></p>
+        </div>
+      </form>
+    </section>
+
+    <aside class="people">
+      <h2>Companions</h2>
+      <ul id="people"></ul>
+      <div class="mgmt">
+        <button id="selAll" class="row" type="button" role="checkbox" aria-checked="false"><span class="dot neutral"></span><span class="label">Select all</span></button>
+        <button id="selNone" class="row" type="button" role="checkbox" aria-checked="false"><span class="dot neutral"></span><span class="label">Select none</span></button>
+        <button id="majority" class="row" type="button" role="checkbox" aria-checked="false"><span class="dot neutral"></span><span class="label">Majority <small>(most people)</small></span></button>
+        <button id="minority" class="row" type="button" role="checkbox" aria-checked="false"><span class="dot neutral"></span><span class="label">Minority <small>(at least 1)</small></span></button>
+      </div>
+      <button id="deleteBtn" class="danger" type="button" disabled>Delete</button>
+      <p class="legend">Removed companions stay listed here (struck through). Delete removes them from the public page only.</p>
+    </aside>
+  </div>
+
+  <section class="panel">
+    <h2>Activity log</h2>
+    <div class="tools">
+      <button id="exportBtn" class="btn" type="button">Export CSV</button>
+    </div>
+    <ul id="history" class="history"></ul>
+  </section>
+</div>
+</div>
+
+<div id="modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-card">
+    <h3 id="modalTitle"></h3>
+    <p id="modalBody"></p>
+    <div class="modal-actions">
+      <button id="modalCancel" class="btn" type="button">Cancel</button>
+      <button id="modalDelete" class="btn red" type="button">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initScheduler } from "../../assets/scheduler.js";
+  const PASS_HASH = "768ff9b2e04496535e1bc926a1c89047d7223f57aa17191039cf16af594faf21";
+  const KEY = "palang_admin_ok";
+  const hash = async (s) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))]
+    .map((x) => x.toString(16).padStart(2, "0")).join("");
+
+  let started = false;
+  function start() {
+    if (started) return;
+    started = true;
+    document.getElementById("gate").hidden = true;
+    document.getElementById("app").hidden = false;
+    initScheduler({
+      eventId: "SLC_NYE_2026",
+      subtitle: "Salt Lake City, UT",
+      start: "2026-12-22",
+      end: "2027-01-04",
+      maxCompanions: 15,
+      minDays: 3,
+      emailRelay: "https://script.google.com/macros/s/AKfycbxa2P5FGWP4fY8HKsIshbD6xLAZpwbV0KsfZrhl1diwI_6cMAuTuME2d7oZ-cXhlQUT/exec",
+      admin: true
+    });
+  }
+
+  let remembered = false;
+  try { remembered = sessionStorage.getItem(KEY) === PASS_HASH; } catch (e) {}
+  if (remembered) start();
+
+  document.getElementById("gateForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const h = await hash(document.getElementById("pass").value.trim());
+    if (h === PASS_HASH) {
+      try { sessionStorage.setItem(KEY, h); } catch (err) {}
+      start();
+    } else {
+      document.getElementById("gateErr").textContent = "Incorrect passcode.";
+    }
+  });
+</script>
+</body>
+</html>

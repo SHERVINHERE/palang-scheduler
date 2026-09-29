@@ -4,54 +4,72 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SLC_NYE_2026 · Palang Scheduler</title>
-<link rel="stylesheet" href="../assets/style.css">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="../assets/scheduler.css">
 </head>
 <body>
-<main class="wrap">
-  <p class="muted"><a href="../">Palang Scheduler</a></p>
-  <h1>SLC_NYE_2026</h1>
-  <p class="muted">Scheduling tool coming soon.</p>
+<div class="page">
+  <p class="crumb"><a href="../">Palang Scheduler</a> / SLC_NYE_2026</p>
+  <header>
+    <h1>December 2026 – January 2027</h1>
+    <p class="place">Salt Lake City, UT</p>
+  </header>
+  <p id="status" class="status" role="status"></p>
 
-  <section class="card">
-    <h2>Live connection test</h2>
-    <p id="status" class="muted">Connecting…</p>
-    <p>Shared note (everyone sees changes live):</p>
-    <p id="note" class="note">—</p>
-    <form id="form">
-      <input id="input" type="text" maxlength="200" placeholder="Type something" autocomplete="off">
-      <button type="submit">Save</button>
-    </form>
-  </section>
-</main>
+  <div class="layout">
+    <section>
+      <div id="grid" class="grid" aria-label="Calendar, December 22, 2026 to January 4, 2027"></div>
+      <p id="rangeHint" class="range-hint" aria-live="polite"></p>
+
+      <form id="form" class="form" novalidate>
+        <div class="fields">
+          <label class="field"><span>Name</span><input id="name" type="text" autocomplete="name" maxlength="60"></label>
+          <label class="field"><span>Email</span><input id="email" type="email" autocomplete="email" inputmode="email" maxlength="120"></label>
+        </div>
+        <button id="submitBtn" class="submit" type="submit">Submit</button>
+        <div class="below">
+          <p id="feedback" class="feedback" aria-live="polite"></p>
+          <p id="lockNote" class="lock-note" aria-live="polite"></p>
+        </div>
+      </form>
+    </section>
+
+    <aside class="people">
+      <h2>Companions</h2>
+      <ul id="people"></ul>
+      <div class="mgmt">
+        <button id="selAll" class="row" type="button" role="checkbox" aria-checked="false"><span class="dot neutral"></span><span class="label">Select all</span></button>
+        <button id="selNone" class="row" type="button" role="checkbox" aria-checked="false"><span class="dot neutral"></span><span class="label">Select none</span></button>
+        <button id="majority" class="row" type="button" role="checkbox" aria-checked="false"><span class="dot neutral"></span><span class="label">Majority <small>(most people)</small></span></button>
+        <button id="minority" class="row" type="button" role="checkbox" aria-checked="false"><span class="dot neutral"></span><span class="label">Minority <small>(at least 1)</small></span></button>
+      </div>
+      <button id="deleteBtn" class="danger" type="button" disabled>Delete</button>
+    </aside>
+  </div>
+</div>
+
+<div id="modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-card">
+    <h3 id="modalTitle"></h3>
+    <p id="modalBody"></p>
+    <div class="modal-actions">
+      <button id="modalCancel" class="btn" type="button">Cancel</button>
+      <button id="modalDelete" class="btn red" type="button">Delete</button>
+    </div>
+  </div>
+</div>
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
-  import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
-  import { firebaseConfig } from "../assets/firebase-config.js";
-
-  const db = getFirestore(initializeApp(firebaseConfig));
-  const ref = doc(db, "pages", "SLC_NYE_2026");
-  const status = document.getElementById("status");
-  const note = document.getElementById("note");
-
-  onSnapshot(ref, (snap) => {
-    status.textContent = "Connected ✓";
-    note.textContent = snap.exists() && snap.data().note ? snap.data().note : "—";
-  }, (err) => {
-    status.textContent = "Connection error: " + err.code;
-  });
-
-  document.getElementById("form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const input = document.getElementById("input");
-    const text = input.value.trim();
-    if (!text) return;
-    try {
-      await setDoc(ref, { note: text, updatedAt: serverTimestamp() }, { merge: true });
-      input.value = "";
-    } catch (err) {
-      status.textContent = "Save failed: " + err.code;
-    }
+  import { initScheduler } from "../assets/scheduler.js";
+  initScheduler({
+    eventId: "SLC_NYE_2026",
+    subtitle: "Salt Lake City, UT",
+    start: "2026-12-22",
+    end: "2027-01-04",
+    maxCompanions: 15,
+    minDays: 3,
+    emailRelay: "https://script.google.com/macros/s/AKfycbxa2P5FGWP4fY8HKsIshbD6xLAZpwbV0KsfZrhl1diwI_6cMAuTuME2d7oZ-cXhlQUT/exec",
+    admin: false
   });
 </script>
 </body>
