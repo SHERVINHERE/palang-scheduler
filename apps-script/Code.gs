@@ -7,6 +7,7 @@
 const OWNER_EMAIL = 'shervpey@gmail.com';
 const SITE_NAME = 'Palang Scheduler';
 const SITE_ORIGIN = 'https://shervinhere.github.io/palang-scheduler/';
+const BANNER_URL = SITE_ORIGIN + 'assets/banner-email.jpg';
 
 function doPost(e) {
   let data;
@@ -181,7 +182,9 @@ function emailHtml_(o) {
   }).join('');
   const lines = (o.lines || []).map(function (l) { return '<p style="margin:0 0 12px;font-size:15px;color:#3b3a37">' + esc_(l) + '</p>'; }).join('');
   return '<div style="background:#f6f5f2;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,Helvetica,Arial,sans-serif">' +
-    '<div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:12px;padding:24px 22px;border:1px solid #e3e1dc">' +
+    '<div style="max-width:520px;margin:0 auto;background:#ffffff;border-radius:12px;border:1px solid #e3e1dc;overflow:hidden">' +
+    '<img src="' + BANNER_URL + '" width="520" alt="" style="display:block;width:100%;max-width:520px;height:auto;border:0">' +
+    '<div style="padding:22px 22px 24px">' +
     '<h1 style="margin:0;font-size:22px;color:#1d1d1b">' + esc_(o.title) + '</h1>' +
     (o.subtitle ? '<p style="margin:2px 0 18px;color:#6b6a66;font-size:15px">' + esc_(o.subtitle) + '</p>' : '<div style="height:14px"></div>') +
     '<p style="margin:0 0 12px;font-size:15px;color:#1d1d1b">' + o.greeting + '</p>' +
@@ -190,7 +193,7 @@ function emailHtml_(o) {
     (buttons ? '<div style="margin:0 0 8px">' + buttons + '</div>' : '') +
     (o.note ? '<p style="margin:8px 0 0;font-size:13px;color:#6b6a66">' + o.note + '</p>' : '') +
     '<p style="margin:22px 0 0;font-size:13px;color:#9a9993">— ' + SITE_NAME + '</p>' +
-    '</div></div>';
+    '</div></div></div>';
 }
 
 // ---------- utils ----------
